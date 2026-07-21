@@ -1,7 +1,7 @@
 """Dependency-free discrete-event execution state and provenance."""
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Mapping, Optional, Protocol, Sequence
 
 
 @dataclass(frozen=True)
@@ -35,7 +35,9 @@ def action_age_ms(age_steps: int, control_period_seconds: float) -> float:
         raise ValueError("action age cannot be negative")
     if control_period_seconds <= 0:
         raise ValueError("control period must be positive")
-    return age_steps * control_period_seconds * 1000.0
+    # Multiplying seconds by 1000 first avoids a surprising 300.00000000000006
+    # for the common 0.1 s control period.
+    return age_steps * (control_period_seconds * 1000.0)
 
 
 def make_hold_action(last_gripper_command: float, action_dimension: int = 7) -> list[float]:
@@ -80,3 +82,40 @@ class EventClock:
 
     def advance(self) -> None:
         self.control_step += 1
+
+
+class EpisodeEnvironment(Protocol):
+    """Minimal API implemented by the pinned LIBERO adapter."""
+
+    def reset(self, *, seed: int) -> tuple[Any, Mapping[str, Any]]: ...
+
+    def step(self, action: Sequence[float]) -> tuple[Any, float, bool, bool, Mapping[str, Any]]: ...
+
+
+@dataclass(frozen=True)
+class CompletedPolicyRequest:
+    """A measured request returned by a policy-specific request executor.
+
+    RTC is intentionally delegated to that executor: it must call the installed
+    policy with the request-specific delay and report the exact values used.
+    """
+
+    actions: Sequence[Sequence[float]]
+    measured_request_latency_ms: float
+    timing: Mapping[str, int]
+    rtc_delay_steps: Optional[int] = None
+    rtc_overlap_actions: int = 0
+    rtc_guided_actions: int = 0
+
+
+class PolicyRequestExecutor(Protocol):
+    def request(
+        self,
+        observation: Any,
+        *,
+        strategy: str,
+        profile: Any,
+        control_period_seconds: float,
+        previous_chunk_remainder: Sequence[Any],
+        execution_horizon: int,
+    ) -> CompletedPolicyRequest: ...
