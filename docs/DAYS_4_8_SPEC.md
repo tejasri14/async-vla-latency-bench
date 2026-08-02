@@ -1,349 +1,262 @@
-# Days 4–8 Specification: Task-Conditioned Delay Tolerance for Asynchronous π0.5
+# Days 4–8 Specification: Temporal Robustness Under Task Phase and Scene Change
 
-**Scope:** Combined workload for all three researchers
-**Primary policy:** `lerobot/pi05_libero_finetuned`
-**Primary simulator:** LIBERO through the pinned LeRobot environment from Days 1–3
-**Required execution backends:** `ideal_sync`, `blocking_sync`, `naive_async`, `rtc`
-**New baseline gate:** VLASH feasibility and, only if compatible, matched evaluation
-**Deferred:** full FASTER reproduction, SmolVLA, OpenVLA-OFT, training a new policy, and a new buffering algorithm
+**Team scope:** all three researchers  
+**Prerequisite:** validated Days 1–3 harness and results  
+**Primary policy:** the same pinned `lerobot/pi05_libero_finetuned` checkpoint  
+**Required execution methods:** `ideal_sync`, `blocking_sync`, `naive_async`, `rtc`
+
+Do not add LIBERO-Plus, VLASH, SmolVLA, FASTER, Reflex, VLA-Corrector, or a new
+controller during Days 4–8.
 
 ---
 
-## 1. Purpose
+## 1. Scientific objective
 
-Days 1–3 establish whether π0.5 execution changes under blocking, naive asynchronous buffering, RTC, and fixed execution horizons.
+Extend the validated Days 1–3 benchmark to answer:
 
-Days 4–8 test the more scientific question:
+1. Does the same delay have different behavioral costs during transit, approach,
+   precision, contact, and placement?
+2. How many actions generated before a scene change execute afterward?
+3. How long does stale control persist?
+4. How long until the first action conditioned on a post-change observation
+   executes?
+5. Does RTC improve continuity, freshness, or both?
 
-> Does the behavioral cost of asynchronous latency depend on task phase, environmental perturbation, and temporal-alignment method?
+The minimum deliverable is a validated temporal-robustness study containing:
 
-The work must separate:
-
-- raw model inference latency;
-- logical request delay;
-- action age;
-- queue underrun;
-- time to first action based on a fresh observation;
-- task success;
-- action continuity.
-
-The work must not claim that an OOD scene makes the fixed π0.5 forward pass intrinsically slower. The primary hypothesis is that OOD conditions and precision-sensitive phases make **stale actions less tolerable**, even when model runtime is similar.
+- task-phase labels;
+- phase-conditioned delay injection;
+- one reproducible mid-episode target displacement;
+- stale-action and fresh-action reaction metrics;
+- matched comparisons among required execution methods.
 
 ---
 
 ## 2. Entry requirements
 
-Do not start the Days 4–8 experiment matrix until all applicable Days 1–3 requirements are satisfied.
-
-Required inputs:
+Do not start broad experiments until these Days 1–3 outputs exist and pass
+validation:
 
 ```text
 async_vla_benchmark/outputs/environment.json
 async_vla_benchmark/outputs/summaries/task_selection.csv
 async_vla_benchmark/outputs/summaries/native_latency.csv
 async_vla_benchmark/outputs/summaries/episodes.csv
+async_vla_benchmark/outputs/summaries/requests.csv
 async_vla_benchmark/outputs/summaries/horizon_sweep.csv
 async_vla_benchmark/outputs/summaries/days1_3_report.md
 ```
 
 Required implementation state:
 
-- exact π0.5 checkpoint loads on CUDA;
-- three usable LIBERO tasks have been selected, or missing suites are documented;
+- exact checkpoint loaded on CUDA;
+- selected tasks recorded;
+- request-specific latency used;
 - latency-to-step conversion uses `ceil`;
-- provenance exists for observations, chunks, and actions;
-- logical delay uses a discrete-event clock rather than `sleep()`;
-- only one inference request may be outstanding;
-- `naive_async` and RTC have validated queue semantics;
-- RTC receives request-specific delay and current chunk remainder;
-- Days 1–3 result validation passes.
+- logical time does not use `sleep()`;
+- observation, request, chunk, and action provenance exists;
+- one-outstanding-request behavior is enforced;
+- RTC receives the current delay and previous-chunk remainder;
+- result validation passes.
 
-If one or more prerequisites are missing, create:
+Create:
 
 ```text
-async_vla_benchmark/outputs/summaries/days4_8_blockers.md
+async_vla_benchmark/outputs/summaries/days1_3_audit.md
 ```
 
-and complete the missing prerequisite before broadening the benchmark.
+The audit must verify:
+
+- repository and checkpoint revisions;
+- task IDs and initial states;
+- latency conversion;
+- action-age calculation;
+- queue semantics;
+- RTC adapter inputs;
+- paired seeds;
+- missing or invalid runs.
+
+Stop if a correctness failure can change the scientific conclusions.
 
 ---
 
-## 3. Verified upstream constraints
+## 3. Repository additions
 
-Treat these as implementation constraints rather than assumptions:
-
-1. LeRobot RTC supports flow-based policies including π0, π0.5, and SmolVLA.
-2. RTC accepts runtime `inference_delay` in control timesteps and uses the previous chunk remainder for overlap guidance.
-3. LIBERO-plus installs under the same `libero` Python package namespace and replaces the vanilla LIBERO package.
-4. Vanilla LIBERO and LIBERO-plus must therefore use separate environments or containers.
-5. The official VLASH repository supports π0.5-style asynchronous inference and provides YAML-based training and inference commands.
-6. Do not assume an ordinary `lerobot/pi05_libero_finetuned` checkpoint is VLASH-compatible without verifying the repository’s future-state-aware training and checkpoint requirements.
-7. The official FASTER implementation is based on OpenPI/JAX and its Horizon-Aware Schedule is a training-time model change. It is not a drop-in flag for the LeRobot π0.5 checkpoint.
-
-Pin all newly used repositories and record their commit SHAs.
-
----
-
-## 4. Scientific hypotheses
-
-### H1: Task phase changes delay tolerance
-
-The same one-time latency pulse should cause greater degradation during approach, precision, or contact than during free-space transit.
-
-### H2: OOD and delay interact
-
-A scene perturbation combined with asynchronous delay should cause more degradation than either perturbation or delay alone.
-
-For binary success, report the descriptive interaction:
-
-\[
-I =
-[S_{\mathrm{OOD,delayed}} - S_{\mathrm{OOD,native}}]
--
-[S_{\mathrm{ID,delayed}} - S_{\mathrm{ID,native}}].
-\]
-
-### H3: Smooth continuity is not the same as fast reaction
-
-RTC may improve jerk and chunk compatibility without proportionally reducing the number of stale actions executed after an unexpected target displacement.
-
-### H4: Temporal alignment may fix a different failure mode
-
-If VLASH is reproducible in a matched setup, determine whether future-state conditioning reduces failures that remain after RTC.
-
-### H5: A single horizon is not uniformly optimal
-
-Use the Days 1–3 horizon results to test whether the best fixed horizon changes by task phase or perturbation.
-
----
-
-## 5. Scope boundaries
-
-### Required
-
-- audit and freeze the Days 1–3 benchmark;
-- implement privileged task-phase annotation;
-- implement a phase-triggered one-time latency pulse;
-- implement a deterministic mid-episode target displacement;
-- implement two static perturbations in LIBERO-plus;
-- run matched `naive_async` and RTC comparisons;
-- preserve `ideal_sync` and `blocking_sync` as references where specified;
-- perform a VLASH compatibility audit;
-- run a VLASH smoke benchmark only when compatibility is verified;
-- produce a validated Days 4–8 report.
-
-### Optional only after required work is complete
-
-- extend VLASH to a second task;
-- run more than five seeds;
-- add a second displacement magnitude;
-- create a FASTER environment and run an official smoke test;
-- add SmolVLA;
-- add an adaptive scheduler.
-
-### Explicitly out of scope
-
-- training or fine-tuning π0.5;
-- implementing a new paper method;
-- claiming real-world robot safety;
-- claiming closed-loop guarantees;
-- comparing reported numbers from different papers without rerunning them;
-- silently approximating VLASH or FASTER;
-- installing LIBERO-plus into the validated vanilla-LIBERO environment.
-
----
-
-## 6. Repository additions
-
-Add:
+Add to the existing benchmark:
 
 ```text
 async_vla_benchmark/
 ├── configs/
 │   ├── days4_8.yaml
 │   ├── phase_pulses.yaml
-│   ├── interventions.yaml
-│   └── ood.yaml
+│   └── interventions.yaml
 ├── benchmark/
 │   ├── phases.py
 │   ├── delay_pulses.py
 │   ├── interventions.py
-│   ├── libero_plus_adapter.py
-│   ├── reaction_metrics.py
-│   └── vlash_adapter.py
+│   └── reaction_metrics.py
 ├── scripts/
 │   ├── audit_days1_3.py
 │   ├── run_phase_pulses.py
 │   ├── run_dynamic_interventions.py
-│   ├── run_libero_plus.py
-│   ├── inspect_vlash.py
-│   ├── run_vlash_smoke.py
 │   ├── validate_days4_8.py
 │   └── make_days4_8_figures.py
 └── outputs/
     ├── phase_pulses/
     ├── interventions/
-    ├── libero_plus/
-    ├── vlash/
     └── summaries/
 ```
 
-Also create:
-
-```text
-docs/BASELINE_COMPATIBILITY.md
-docs/EXPERIMENT_DECISIONS.md
-```
-
-Do not mix VLASH or FASTER dependencies into the validated LeRobot environment unless their dependency sets are proven compatible. Prefer separate environments and an adapter boundary.
+Extend the existing execution engine and schemas. Do not build a second queue,
+logical clock, or policy wrapper.
 
 ---
 
-## 7. Fixed configuration
-
-Read selected task IDs from:
-
-```text
-outputs/summaries/task_selection.csv
-```
-
-Do not hardcode different task IDs.
-
-Use the same:
-
-- π0.5 checkpoint revision;
-- policy normalization;
-- camera keys;
-- language instruction;
-- control mode;
-- simulator initialization states;
-- seeds;
-- control frequency;
-- sampling configuration;
-- GPU type;
-- logical clock;
-- action clipping;
-- hold action;
-- provenance schema
-
-as Days 1–3.
-
-Default seeds:
-
-```yaml
-seeds: [0, 1, 2, 3, 4]
-```
-
-Required latency profiles:
-
-```yaml
-latency_profiles:
-  native:
-    use_measured_native_latency: true
-    added_latency_ms: 0
-
-  native_plus_700:
-    use_measured_native_latency: true
-    added_latency_ms: 700
-```
-
-For phase-pulse experiments, the extra 700 ms is applied to exactly one request. All other requests use native latency.
-
-Use the best fixed horizon from Days 1–3 only when it was selected without using Days 4–8 results. Also retain horizon 10 as the standard reference.
-
-Do not tune a different horizon for each perturbation.
-
----
-
-## 8. Team ownership
+## 4. Team ownership
 
 | Person | Primary ownership | Secondary responsibility |
 |---|---|---|
-| Person 1 | Simulator state, phase labels, interventions, LIBERO-plus environment | Reproducibility and reset validation |
-| Person 2 | Delay pulses, provenance, reaction metrics, experiment runner | Queue/log validation and matched seeds |
-| Person 3 | VLASH audit/integration, analysis, figures, paper-facing report | Baseline fairness and environment metadata |
+| Person 1 | simulator geometry, object resolution, task phases, intervention and reset integrity | phase videos |
+| Person 2 | delay pulses, provenance extensions, reaction metrics, experiment runner | log validation |
+| Person 3 | aggregate analysis, confidence intervals, figures, report | independent semantics review |
 
-All three people must participate in the Day 4 audit and Day 8 conclusion review.
+All three review the Days 1–3 audit and the final decision gate.
 
 ---
 
-# Day 4 — Audit, freeze, and phase instrumentation
+## 5. Task selection
 
-## Shared objective
+Use the exact task IDs selected during Days 1–3.
 
-Establish that Days 1–3 results are trustworthy and add task-phase labels without changing policy behavior.
+Required for phase-pulse study:
 
-## Person 1: phase annotation
+- selected LIBERO-Spatial task;
+- selected LIBERO-Goal task.
 
-Implement privileged phase annotation for analysis only.
+Required for dynamic target displacement:
 
-For each selected task:
+- selected LIBERO-Spatial task.
 
-1. resolve the primary manipulated object from the task definition or simulator object registry;
-2. resolve end-effector position;
-3. detect gripper/end-effector contact with the target;
-4. calculate end-effector-to-object distance;
-5. label each control step.
+The selected LIBERO-10 task remains available for optional descriptive phase
+analysis, but it is not required for the Days 4–8 run matrix.
+
+Do not replace a task because an intervention result is inconvenient. Replace a
+task only when the required geometry cannot be resolved or ideal success is
+insufficient, and document the decision.
+
+---
+
+## 6. Privileged task-phase labels
+
+Phase labels are for analysis and intervention timing only. They must never be
+provided to the policy or alter observations.
+
+Resolve:
+
+- primary manipulated object;
+- end-effector position;
+- target contact;
+- target grasp state;
+- destination geometry where available.
 
 Initial phase definitions:
 
 ```yaml
 transit:
-  condition: distance > 0.10 m and no target contact
+  condition: distance_to_target > 0.10 m and no target contact
 
 approach:
-  condition: 0.03 m < distance <= 0.10 m and no target contact
+  condition: 0.03 m < distance_to_target <= 0.10 m and no target contact
 
 precision:
-  condition: distance <= 0.03 m and no target contact
+  condition: distance_to_target <= 0.03 m and no target contact
 
 contact:
-  condition: target contact is active
+  condition: target contact is active and target is not yet stably grasped
+
+placement:
+  condition: target is grasped and is approaching or inside the destination region
 
 unknown:
-  condition: target or geometry cannot be resolved
+  condition: required geometry cannot be resolved
 ```
 
-Requirements:
+Thresholds are initial analysis settings, not universal constants. Record them
+in config and do not tune them based on final outcomes.
 
-- phase labels must not affect execution;
-- unresolved objects must produce `unknown`, not a guessed phase;
-- record distances and contact booleans;
-- validate phase transitions on video for at least one episode per task;
-- preserve the phase label on every executed-action row.
+Add to each executed-action row:
 
-## Person 2: Days 1–3 audit and delay-pulse engine
-
-Run:
-
-```bash
-python async_vla_benchmark/scripts/audit_days1_3.py \
-  --output-dir async_vla_benchmark/outputs
+```text
+task_phase
+eef_target_distance_m
+target_contact
+target_grasped
+destination_distance_m
+phase_resolution_status
 ```
 
-Audit:
+Validation:
 
-- exact checkpoint revision;
-- action source provenance;
-- request-specific delay;
-- action-age calculation;
-- queue threshold behavior;
-- horizon behavior;
-- paired initial states;
-- RTC inputs;
-- missing episodes;
-- duplicated episode IDs;
-- confidence interval code.
+- phase labels do not change the policy input;
+- raw geometry is logged;
+- unresolved phases become `unknown`;
+- one video per selected task displays the phase and geometry;
+- phase transitions are manually inspected.
 
-Implement a one-time request latency pulse:
+Required output:
 
-```python
-if first_request_started_in_target_phase and not pulse_already_used:
-    added_latency_ms += pulse_latency_ms
-    pulse_already_used = True
+```text
+outputs/summaries/phase_resolution.csv
 ```
 
-The pulse must affect the request that starts in the target phase, not an arbitrary later request.
+---
+
+## 7. Experiment A: phase-conditioned one-time delay pulse
+
+### Purpose
+
+Apply the same one-time latency increase during different phases while leaving
+the rest of the episode at native latency.
+
+### Methods
+
+```text
+naive_async
+rtc
+```
+
+### Tasks
+
+```text
+selected LIBERO-Spatial
+selected LIBERO-Goal
+```
+
+### Target phases
+
+```text
+transit
+approach
+precision_or_contact
+```
+
+For `precision_or_contact`:
+
+1. trigger on the first request whose source observation is labeled `precision`;
+2. if no such request occurs, trigger on the first request labeled `contact`;
+3. if neither occurs, mark the episode invalid for this phase condition.
+
+### Pulse
+
+```yaml
+normal_request_latency: measured native request latency
+one_time_added_latency_ms: 700
+maximum_pulses_per_episode: 1
+```
+
+The pulse must apply to the first request started in the requested phase.
+
+Do not use `sleep()`.
 
 Log:
 
@@ -352,618 +265,320 @@ pulse_target_phase
 pulse_triggered
 pulse_request_id
 pulse_request_step
+pulse_source_observation_id
+pulse_response_available_step
 pulse_added_latency_ms
-pulse_response_step
 ```
 
-## Person 3: baseline compatibility audit
-
-Create `docs/BASELINE_COMPATIBILITY.md` with one row per baseline:
-
-```text
-baseline
-official repository
-framework
-base model
-training required
-checkpoint availability
-LIBERO support
-expected integration effort
-fair comparison variables
-status
-```
-
-Required entries:
-
-- synchronous π0.5;
-- naive asynchronous queue;
-- RTC;
-- VLASH;
-- FASTER;
-- one adaptive-horizon representative for later work.
-
-Clone and pin the official VLASH repository in a separate workspace or environment. Inspect:
-
-- `pyproject.toml`;
-- π0.5 training config;
-- async inference config;
-- state offset or future-state inputs;
-- checkpoint loading;
-- LIBERO benchmark code;
-- action normalization;
-- control frequency;
-- action quantization settings.
-
-Do not run a numerical comparison yet.
-
-## Day 4 deliverables
-
-```text
-outputs/summaries/days1_3_audit.md
-outputs/summaries/phase_resolution.csv
-outputs/videos/phase_annotation_*.mp4
-docs/BASELINE_COMPATIBILITY.md
-```
-
-## Day 4 gate
-
-Proceed only when:
-
-- Days 1–3 audit has no unresolved correctness failure;
-- at least the selected spatial and goal tasks have valid phase labels;
-- a latency pulse can be tied to one exact request;
-- VLASH requirements are documented without assumptions.
-
----
-
-# Day 5 — Phase-triggered latency tolerance
-
-## Scientific experiment
-
-Inject the same one-time 700 ms latency pulse at different task phases.
-
-Use the selected:
-
-- LIBERO-Spatial task;
-- LIBERO-Goal task.
-
-Required strategies:
-
-```text
-naive_async
-rtc
-```
-
-Required phases:
-
-```text
-transit
-approach
-precision_or_contact
-```
-
-Use `precision_or_contact` as a trigger group:
-
-1. trigger at the first `precision` request;
-2. if no request begins in precision, trigger at the first `contact` request;
-3. if neither occurs, mark the episode invalid for that phase condition.
-
-All non-pulse policy requests use native measured latency.
-
-## Run matrix
+### Run matrix
 
 ```text
 2 tasks
-× 3 trigger phases
-× 2 strategies
-× 5 seeds
+× 3 target phases
+× 2 methods
+× 5 paired seeds
 = 60 episodes
 ```
 
-Reuse Days 1–3 native-latency episodes as no-pulse controls only when every other configuration field matches.
+Reuse no-pulse native controls from Days 1–3 only when every relevant
+configuration field matches.
 
-## Required metrics
+### Metrics
 
-- success;
+- task success;
 - logical completion time;
-- request latency;
-- action age after the pulse;
-- maximum post-pulse action age;
+- mean and maximum post-pulse action age;
 - queue underrun steps;
 - hold steps;
 - discarded actions;
-- action jerk;
-- phase at first failure indicator, when observable;
-- remaining episode return or success.
-
-Define:
-
-```text
-pulse_to_fresh_action_ms
-```
-
-as the time from the pulse-triggering observation capture to the first executed action sourced from the delayed request.
-
-## Person assignments
-
-### Person 1
-
-- verify phase triggers visually;
-- inspect invalid or missing phase episodes;
-- confirm object/contact resolution.
-
-### Person 2
-
-- run the full phase-pulse matrix;
-- validate pulse timing and provenance;
-- produce episode summaries.
-
-### Person 3
-
-- produce phase-conditioned plots;
-- compute paired differences between RTC and naive async;
-- inspect whether the pulse changes continuity, freshness, or both.
-
-## Required figures
-
-```text
-outputs/figures/success_by_pulse_phase.png
-outputs/figures/action_age_by_pulse_phase.png
-outputs/figures/pulse_to_fresh_action.png
-outputs/figures/queue_underruns_by_pulse_phase.png
-```
-
-## Day 5 gate
-
-The task-phase hypothesis remains viable when at least one task shows a material difference between transit and precision/contact under the same pulse.
-
-If no phase effect appears:
-
-- verify trigger correctness;
-- verify the task actually reaches precision/contact;
-- do not invent a phase-conditioned conclusion;
-- continue with dynamic intervention because unexpected scene change tests a different mechanism.
+- action delta, acceleration, and jerk;
+- time from pulse-source observation to first action from the delayed request;
+- downstream episode success.
 
 ---
 
-# Day 6 — Dynamic target displacement
+## 8. Experiment B: dynamic mid-chunk target displacement
 
-## Scientific experiment
+### Purpose
 
-Move the task’s target object during execution without clearing the queue or canceling an outstanding request.
+Measure stale-action exposure after a scene change that occurs while old actions
+remain buffered.
 
-Use the selected LIBERO-Spatial task.
-
-Trigger:
+### Task
 
 ```text
-first transition into approach phase
+selected LIBERO-Spatial task
 ```
 
-Intervention:
+### Trigger
+
+```text
+first transition into approach
+```
+
+### Default intervention
 
 ```yaml
 name: target_shift_5cm
-translation:
-  preferred_axis: world_x
-  magnitude_m: 0.05
-preserve:
-  - z_position
-  - orientation
-reset:
-  - linear_velocity
-  - angular_velocity
+translation_m: 0.05
+preferred_axis: world_x
+preserve_height: true
+preserve_orientation: true
+zero_linear_velocity: true
+zero_angular_velocity: true
 ```
 
-If positive x is invalid or causes overlap, use negative x. Record the actual displacement vector.
+If positive x is invalid, use negative x. Record the actual displacement vector.
 
-Do not intervene when:
+### Intervention semantics
 
-- the target is already grasped;
+At intervention time:
+
+- do not clear the queue;
+- do not cancel an in-flight request;
+- do not issue an immediate extra request;
+- do not alter method-specific request timing;
+- do not move an already grasped object;
+- do not silently move the trigger to a later phase.
+
+An episode is invalid for reaction analysis when:
+
 - the target cannot be resolved;
-- the final pose would be outside the workspace;
-- the move causes immediate invalid collision.
+- the target is already grasped;
+- neither displacement direction is workspace-safe;
+- the intervention produces an invalid collision or simulator failure.
 
-Mark such episodes invalid for intervention analysis rather than silently changing the trigger.
+Invalid episodes remain logged and are excluded only from reaction aggregates.
 
-## Required strategies
-
-```text
-ideal_sync
-blocking_sync
-naive_async
-rtc
-```
-
-Conditions:
-
-```text
-ideal_sync: ideal logical latency
-blocking_sync: native_plus_700
-naive_async: native and native_plus_700
-rtc: native and native_plus_700
-```
-
-## Run matrix
+### Conditions
 
 ```text
 ideal_sync:
-  1 condition × 5 seeds = 5 episodes
+  ideal logical latency
 
 blocking_sync:
-  1 condition × 5 seeds = 5 episodes
+  native_plus_700
 
 naive_async:
-  2 conditions × 5 seeds = 10 episodes
+  native
+  native_plus_700
 
 rtc:
-  2 conditions × 5 seeds = 10 episodes
+  native
+  native_plus_700
+```
+
+### Run matrix
+
+```text
+ideal_sync:      1 condition × 5 seeds = 5
+blocking_sync:   1 condition × 5 seeds = 5
+naive_async:     2 conditions × 5 seeds = 10
+rtc:             2 conditions × 5 seeds = 10
 
 total = 30 episodes
 ```
 
-## Reaction metrics
+---
 
-For each intervention episode, log:
+## 9. Canonical reaction metrics
+
+Let the intervention occur at logical time `t_i`.
+
+### Stale action
+
+An action is stale when:
 
 ```text
-intervention_step
-intervention_logical_time
-last_pre_intervention_observation_id
-first_post_intervention_observation_id
-first_post_intervention_request_id
-first_executed_action_from_post_intervention_observation
-fresh_action_reaction_latency_ms
-pre_intervention_actions_executed_after_intervention
-post_intervention_queue_underruns
-recovery_success
+action_execution_time >= t_i
+and
+source_observation_time < t_i
 ```
 
-The first fresh action must be determined by observation provenance, not by inference completion time.
-
-## Person assignments
-
-### Person 1
-
-- implement and test target displacement;
-- validate workspace safety;
-- confirm reset restores the original scene;
-- generate before/after intervention videos.
-
-### Person 2
-
-- implement reaction metrics;
-- run the 30-episode matrix;
-- validate source-observation logic.
-
-### Person 3
-
-- compare reaction latency, stale-action count, jerk, and recovery;
-- determine whether RTC primarily improves continuity or reaction.
-
-## Required figures
+### Stale-action count
 
 ```text
-outputs/figures/fresh_action_reaction_latency.png
+N_stale = number of stale actions executed after t_i
+```
+
+### Stale duration
+
+```text
+T_stale =
+  last stale-action execution time - t_i
+```
+
+Use zero when no stale action executes.
+
+### Fresh-action reaction latency
+
+```text
+T_fresh =
+  first execution time of an action whose source observation was captured
+  after t_i
+  -
+  t_i
+```
+
+Do not substitute:
+
+- inference completion;
+- response arrival;
+- queue insertion;
+- first action from an already in-flight pre-intervention request.
+
+### Required fields
+
+```text
+intervention_id
+intervention_step
+intervention_logical_time
+intervention_displacement_xyz
+first_post_intervention_observation_id
+first_post_intervention_request_id
+first_fresh_action_step
+stale_action_count
+stale_duration_ms
+fresh_action_reaction_latency_ms
+recovery_success
+intervention_valid
+invalid_reason
+```
+
+---
+
+## 10. Required tests
+
+### Phase tests
+
+- phase labels do not modify policy inputs;
+- raw distance/contact values are recorded;
+- `unknown` is used when geometry cannot be resolved;
+- phase pulse occurs once;
+- phase pulse occurs in the configured phase;
+- invalid phase conditions are not silently reassigned.
+
+### Intervention tests
+
+- target moves approximately 5 cm;
+- height and orientation are preserved;
+- linear and angular velocity reset;
+- queue contents are not cleared;
+- outstanding request is not canceled;
+- reset restores the original scene;
+- intervention does not leak into the next episode.
+
+### Reaction tests
+
+- pre-intervention source observations are classified stale;
+- post-intervention source observations are classified fresh;
+- response arrival is not mistaken for action execution;
+- invalid intervention episodes are excluded from reaction aggregates;
+- stale count and duration are zero when no stale action executes.
+
+---
+
+## 11. Required outputs
+
+Raw and episode-level outputs should extend the existing Days 1–3 format.
+
+Required summaries:
+
+```text
+outputs/summaries/days1_3_audit.md
+outputs/summaries/phase_resolution.csv
+outputs/summaries/phase_pulse_results.csv
+outputs/summaries/intervention_results.csv
+outputs/summaries/reaction_metrics.csv
+outputs/summaries/days4_8_report.md
+```
+
+Required figures:
+
+```text
+outputs/figures/success_by_pulse_phase.png
+outputs/figures/action_age_by_pulse_phase.png
+outputs/figures/pulse_request_to_execution.png
 outputs/figures/stale_actions_after_intervention.png
-outputs/figures/recovery_success_after_intervention.png
+outputs/figures/stale_duration_after_intervention.png
+outputs/figures/fresh_action_reaction_latency.png
+outputs/figures/continuity_vs_freshness.png
 outputs/figures/intervention_timeline_examples.png
 ```
 
----
+Required videos:
 
-# Day 7 — Static OOD interaction and VLASH smoke gate
-
-## Part A: LIBERO-plus static perturbations
-
-Use a separate environment or container:
-
-```text
-async-vla-libero-plus
-```
-
-Do not uninstall vanilla LIBERO from the validated base environment.
-
-Record:
-
-- LIBERO-plus repository SHA;
-- asset revision;
-- LeRobot SHA;
-- package versions;
-- selected task mapping;
-- camera configuration.
-
-Use the same selected spatial task when the task ID and instruction map exactly. If mapping differs, document it and stop the matched comparison.
-
-Required perturbations:
-
-### Object-layout shift
-
-```yaml
-name: object_layout_shift
-target_displacement_m: 0.05
-axis: workspace_safe_world_x
-```
-
-### Camera shift
-
-```yaml
-name: camera_shift
-translation_m: 0.05
-yaw_degrees: 5
-camera: agentview
-wrist_camera_unchanged: true
-```
-
-Required strategies:
-
-```text
-naive_async
-rtc
-```
-
-Required latency profiles:
-
-```text
-native
-native_plus_700
-```
-
-Run matrix:
-
-```text
-2 perturbations
-× 2 latency profiles
-× 2 strategies
-× 5 seeds
-= 40 episodes
-```
-
-Reuse matched unperturbed episodes from Days 1–3 where valid.
-
-Report zero-delay or native OOD success separately. If the perturbation causes near-zero success even without added delay, state that latency interaction cannot be isolated.
-
-## Part B: VLASH smoke gate
-
-VLASH may be run only when all of the following are verified:
-
-1. the implementation can evaluate a π0.5 policy on the selected LIBERO task;
-2. the checkpoint includes the future-state-aware training required by the method, or the official code explicitly supports inference without it;
-3. observation keys and normalization match;
-4. action parameterization matches relative LIBERO control;
-5. action horizon and control frequency are known;
-6. logging can expose source observation, request time, and executed action;
-7. no action quantization or speedup setting is enabled unless it is an explicit comparison variable.
-
-Do not label a generic async π0.5 run as VLASH.
-
-If compatible:
-
-Run one selected spatial task:
-
-```text
-2 latency profiles
-× 5 seeds
-= 10 episodes
-```
-
-Use:
-
-```text
-native
-native_plus_700
-```
-
-Record the exact checkpoint and config.
-
-If incompatible or no compatible checkpoint is available:
-
-- do not create approximate results;
-- write a blocker report;
-- specify whether training is required;
-- estimate the smallest fair reproduction for the next week.
-
-## Person assignments
-
-### Person 1
-
-- own LIBERO-plus environment and perturbation reset correctness;
-- verify task mapping.
-
-### Person 2
-
-- adapt common logging and execution metrics to LIBERO-plus;
-- run the 40 OOD episodes.
-
-### Person 3
-
-- complete VLASH compatibility audit;
-- run the smoke matrix only if the gate passes;
-- document all config differences.
-
-## Required outputs
-
-```text
-outputs/summaries/libero_plus_environment.json
-outputs/summaries/ood_results.csv
-outputs/summaries/ood_delay_interaction.csv
-outputs/summaries/vlash_compatibility.md
-outputs/summaries/vlash_smoke.csv  # only if valid
-```
+- one phase-annotated episode per selected task;
+- one representative intervention episode per method;
+- every intervention infrastructure failure.
 
 ---
 
-# Day 8 — Consolidation, optional VLASH extension, and FASTER audit
+## 12. Statistical reporting
 
-## Shared priority
+Use paired seeds and identical initial states wherever possible.
 
-Complete required validation and determine whether the project has a workshop-level empirical finding.
+For success:
 
-Do not spend Day 8 forcing a broken baseline integration while required experiment logs remain invalid.
+- raw success count;
+- success rate;
+- Wilson 95% interval.
 
-## Person 1
+For continuous metrics:
 
-- rerun failed or invalid intervention/OOD episodes;
-- verify reset isolation;
-- complete phase and perturbation videos;
-- document simulator limitations.
+- mean;
+- median;
+- bootstrap 95% interval over episodes.
 
-## Person 2
+Report paired method differences for matched seeds.
 
-- run `validate_days4_8.py`;
-- aggregate matched-seed results;
-- compute confidence intervals;
-- verify no results mix vanilla LIBERO and LIBERO-plus metadata;
-- generate final metric tables.
-
-## Person 3
-
-If VLASH smoke succeeds:
-
-- extend VLASH to the selected goal task or increase seeds;
-- compare only matched tasks and latency profiles.
-
-If VLASH smoke fails:
-
-- finalize the compatibility report;
-- do not present paper-reported numbers as your measurements.
-
-Perform a FASTER feasibility audit only:
-
-- clone and pin the official FASTER repository;
-- record its OpenPI/JAX dependency;
-- inspect LIBERO instructions;
-- determine whether an official compatible LIBERO FASTER checkpoint is available;
-- determine whether Horizon-Aware Schedule training is required;
-- estimate memory and training requirements;
-- identify metrics needed for TTFA and streaming actions.
-
-Write:
-
-```text
-outputs/summaries/faster_feasibility.md
-```
-
-A full FASTER numerical comparison is not required for Days 4–8.
+Five-seed results are preliminary. Do not treat per-step actions as independent
+episode samples.
 
 ---
 
-## 9. Required run summary
+## 13. Day-by-day plan
 
-Maximum planned new episodes:
+### Day 4
 
-| Experiment | Episodes |
-|---|---:|
-| Phase-triggered pulse | 60 |
-| Dynamic target displacement | 30 |
-| Static LIBERO-plus OOD | 40 |
-| VLASH smoke, conditional | 10 |
-| **Maximum** | **140** |
+- run Days 1–3 audit;
+- implement object and geometry resolution;
+- implement phase labels;
+- generate and inspect phase videos;
+- implement one-time pulse infrastructure.
 
-Runs may reuse exact matched controls from Days 1–3.
+### Day 5
 
-Do not increase this matrix until required logs validate.
+- complete phase-label tests;
+- run phase-pulse smoke tests;
+- verify pulse timing and provenance;
+- begin the 60-episode phase matrix.
 
----
+### Day 6
 
-## 10. Logging additions
+- finish phase-pulse matrix;
+- implement target displacement;
+- complete intervention and reset tests;
+- add reaction metric extraction.
 
-Extend action rows with:
+### Day 7
 
-```text
-task_phase
-eef_target_distance_m
-target_contact
-pulse_target_phase
-pulse_triggered
-intervention_name
-intervention_active
-post_intervention_observation
-environment_variant
-baseline_repository_sha
-baseline_checkpoint_revision
-```
+- run the 30-episode dynamic-intervention matrix;
+- validate fresh/stale classification;
+- rerun infrastructure failures;
+- generate representative videos.
 
-Extend request rows with:
+### Day 8
 
-```text
-phase_at_request
-one_time_pulse_ms
-future_state_target_step
-future_state_source
-time_to_first_action_ms
-```
-
-The VLASH-specific fields may be null for non-VLASH baselines.
-
-Every result must include an environment fingerprint. Never aggregate results when fingerprints differ unexpectedly.
+- validate all Days 4–8 outputs;
+- aggregate metrics;
+- generate figures;
+- write `days4_8_report.md`;
+- apply decision gate.
 
 ---
 
-## 11. Statistical reporting
-
-Use paired seeds and identical initial states wherever supported.
-
-Report:
-
-- success rate with Wilson 95% interval;
-- mean and median action age;
-- p95 action age;
-- mean fresh-action reaction latency;
-- stale actions executed after intervention;
-- queue underrun rate;
-- action jerk;
-- logical completion time;
-- number of policy requests;
-- total GPU inference time.
-
-Use bootstrap confidence intervals over episodes for continuous metrics.
-
-With five seeds, label all findings preliminary. Avoid relying only on significance tests. Report effect sizes and raw counts.
-
-For phase pulses, compare:
-
-```text
-precision/contact pulse minus transit pulse
-```
-
-For OOD-delay interaction, report the difference-in-differences and all four underlying success rates.
-
-For VLASH, compare only matched:
-
-- checkpoint family;
-- task;
-- seed;
-- control frequency;
-- latency profile;
-- horizon;
-- action parameterization.
-
----
-
-## 12. Validation requirements
-
-`validate_days4_8.py` must fail when:
-
-- a pulse fires more than once;
-- a phase pulse fires outside its requested phase;
-- an intervention is logged without the target moving;
-- target displacement leaks across resets;
-- camera changes leak across resets;
-- a fresh-action reaction metric references a pre-intervention observation;
-- an invalid intervention episode is included in reaction aggregates;
-- vanilla LIBERO and LIBERO-plus rows are mixed without an environment field;
-- a VLASH result lacks an official config and compatible checkpoint record;
-- action quantization differs across baselines without explicit labeling;
-- request or action timestamps are nonmonotonic;
-- provenance references are missing;
-- control frequencies differ in a matched comparison;
-- horizons differ in a matched comparison;
-- Days 1–3 checkpoint revision differs from Days 4–8.
-
----
-
-## 13. Commands
+## 14. Commands
 
 Provide commands resembling:
 
@@ -973,20 +588,13 @@ python async_vla_benchmark/scripts/audit_days1_3.py \
 
 python async_vla_benchmark/scripts/run_phase_pulses.py \
   --config async_vla_benchmark/configs/days4_8.yaml \
-  --resume
+  --dry-run
 
-python async_vla_benchmark/scripts/run_dynamic_interventions.py \
+python async_vla_benchmark/scripts/run_phase_pulses.py \
   --config async_vla_benchmark/configs/days4_8.yaml \
   --resume
 
-python async_vla_benchmark/scripts/run_libero_plus.py \
-  --config async_vla_benchmark/configs/ood.yaml \
-  --resume
-
-python async_vla_benchmark/scripts/inspect_vlash.py \
-  --repo-path ../vlash
-
-python async_vla_benchmark/scripts/run_vlash_smoke.py \
+python async_vla_benchmark/scripts/run_dynamic_interventions.py \
   --config async_vla_benchmark/configs/days4_8.yaml \
   --resume
 
@@ -997,116 +605,53 @@ python async_vla_benchmark/scripts/make_days4_8_figures.py \
   --output-dir async_vla_benchmark/outputs
 ```
 
-All run scripts must support:
+Support:
 
 ```text
 --dry-run
 --resume
---seed
 --task
+--seed
 --strategy
 --latency-profile
+--phase
 --overwrite
 ```
 
-`--dry-run` must print the exact planned matrix without loading a policy.
+---
+
+## 15. Decision gate
+
+Continue to Week 2 when at least one core temporal-robustness effect is
+reproducible:
+
+- delay effects differ by task phase;
+- dynamic intervention produces nonzero stale-action exposure;
+- RTC improves continuity but leaves a measurable freshness gap;
+- action age reveals behavior not explained by request latency.
+
+Stop or reframe when:
+
+- phase labels are unreliable;
+- dynamic interventions cannot be reproduced;
+- target movement creates no stale-action exposure;
+- all methods produce effectively identical temporal behavior;
+- ideal success is too low to isolate delay effects;
+- the result is only “more delay reduces success.”
 
 ---
 
-## 14. Required figures
+## 16. Stage report questions
 
-```text
-outputs/figures/success_by_pulse_phase.png
-outputs/figures/action_age_by_pulse_phase.png
-outputs/figures/pulse_to_fresh_action.png
-outputs/figures/fresh_action_reaction_latency.png
-outputs/figures/stale_actions_after_intervention.png
-outputs/figures/recovery_success_after_intervention.png
-outputs/figures/ood_delay_interaction.png
-outputs/figures/continuity_vs_reaction_tradeoff.png
-outputs/figures/baseline_comparison.png  # include VLASH only if valid
-```
+`days4_8_report.md` must answer:
 
-The continuity-versus-reaction figure should place, for each method:
-
-- x-axis: fresh-action reaction latency or stale actions after intervention;
-- y-axis: action jerk or continuity cost;
-- marker annotation: success rate.
-
-This tests whether a method is smooth, reactive, both, or neither.
-
----
-
-## 15. Days 4–8 report
-
-Create:
-
-```text
-async_vla_benchmark/outputs/summaries/days4_8_report.md
-```
-
-Answer:
-
-1. Did the same latency pulse have different effects across task phases?
-2. Were precision/contact phases less delay-tolerant than transit?
-3. Did RTC reduce action discontinuity?
-4. Did RTC reduce stale-action exposure after target movement?
-5. How many pre-intervention actions were executed after the target moved?
-6. Did OOD perturbations amplify delay degradation?
-7. Was the OOD-delay interaction driven by perception failure at native latency?
-8. Did the best fixed horizon from Days 1–3 remain best under perturbations?
-9. Was VLASH reproduced fairly?
-10. If VLASH ran, did it improve reaction, continuity, or both?
-11. Is FASTER reproducible with an available official LIBERO checkpoint, or does it require training?
-12. What is the strongest defensible workshop claim?
-13. What result would still be needed before writing the paper?
-14. Which methods must be added next?
-
----
-
-## 16. Go/no-go criteria
-
-### Continue toward a workshop paper when at least three are observed
-
-- phase-triggered delay produces meaningfully different outcomes;
-- dynamic target movement causes measurable stale-action exposure;
-- RTC improves continuity but leaves a distinct reaction gap;
-- OOD and delay have a nontrivial interaction;
-- fixed-horizon ranking changes across phase or perturbation;
-- VLASH changes the failure profile relative to RTC;
-- synchronous model ranking or native success does not predict delayed behavior;
-- the instrumentation reveals action-age effects not captured by raw inference latency.
-
-### Reframe or stop when
-
-- phase pulses have no measurable effect after trigger validation;
-- target displacement does not create stale-action exposure;
-- OOD failure is already near total at native latency;
-- all asynchronous strategies are statistically and practically indistinguishable;
-- results depend entirely on one unstable task;
-- environment resets are not reproducible;
-- the exact policy checkpoint cannot be held fixed;
-- the benchmark cannot fairly integrate any strong recent asynchronous baseline.
-
----
-
-## 17. Completion response
-
-When Days 4–8 are complete, report:
-
-1. files added and modified;
-2. repository, checkpoint, and environment revisions;
-3. selected tasks;
-4. planned and completed episode counts;
-5. failed, skipped, and invalid episodes;
-6. phase-resolution success;
-7. intervention and reset validation;
-8. OOD environment fingerprint;
-9. VLASH compatibility result;
-10. FASTER feasibility result;
-11. key effect sizes;
-12. validation status;
-13. paths to figures and summaries;
-14. remaining scientific and engineering risks.
-
-Do not claim completion when only code exists. Required experiments must have validated output files.
+1. Did identical delay have different effects by phase?
+2. Which phase was least delay-tolerant?
+3. How many stale actions executed after target movement?
+4. How long did stale control persist?
+5. What was fresh-action reaction latency?
+6. Did blocking avoid stale actions at the cost of completion speed?
+7. Did RTC improve continuity?
+8. Did RTC improve freshness?
+9. Were action age and request latency meaningfully different?
+10. Is the temporal-robustness signal strong enough for the LIBERO-Plus study?
