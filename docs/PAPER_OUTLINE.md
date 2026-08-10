@@ -2,119 +2,276 @@
 
 ## Working title
 
-**StaleBench: Temporal Robustness of Vision-Language-Action Policies under
-Asynchronous Execution**
-
----
+**Robustness Under Delay: OOD × Inference-Latency Interactions in Vision-Language-Action Policies**
 
 ## Abstract
 
-- asynchronous execution prevents blocking;
-- buffered actions may remain conditioned on an outdated scene;
-- standard request latency, success, and smoothness do not measure this;
-- StaleBench adds action-level provenance, controlled interventions, phase
-  analysis, and OOD-delay interaction;
-- summarize principal empirical findings without overstating scope.
+Cover only:
 
----
+1. action-chunked VLAs are deployed with nonzero inference latency;
+2. robustness benchmarks typically evaluate distribution shift without explicitly asking whether the shift changes tolerance to delay;
+3. we cross LIBERO-Plus perturbations with calibrated asynchronous inference delay;
+4. we organize results along perturbation mechanism and task behavioral demand;
+5. we compare Naive async and RTC and use action age as mechanism analysis;
+6. state the strongest replicated result, including nulls/counterexamples when relevant.
 
 ## 1. Introduction
 
-- continuous motion is not the same as responsive motion;
-- target-movement motivating example;
-- missing executed-action freshness metrics;
-- contributions.
+Motivating question:
 
----
+> Can native-latency robustness predict robustness under delayed asynchronous execution?
+
+Contributions:
+
+1. controlled OOD × delay evaluation across all seven LIBERO-Plus perturbation families;
+2. two-axis analysis:
+   - task behavioral demand;
+   - perturbation mechanism;
+3. matched Naive async vs RTC comparison;
+4. per-action temporal provenance/action-age diagnostics.
+
+Do not claim a new controller.
 
 ## 2. Related Work
 
-- action chunking and RTC;
-- future-state-aware inference and VLASH;
-- streaming and time-to-first-action methods;
-- adaptive execution horizons;
-- stale-action correction;
-- VLA robustness benchmarks;
-- event-triggered control as conceptual background.
+### 2.1 VLA robustness
 
----
+- LIBERO / LIBERO-Plus;
+- robustness taxonomies by environment, observation, instruction, robot/action state.
 
-## 3. StaleBench
+### 2.2 Asynchronous / real-time VLA execution
 
-### 3.1 Provenance architecture
+- RTC;
+- future-state, streaming, corrective, and adaptive-horizon methods as context.
 
-Observation → request → chunk → queue → executed action.
+### 2.3 Temporal freshness
 
-### 3.2 Timing definitions
+- distinguish request latency from the age of information behind executed actions.
 
-Request latency, logical delay, action age.
+## 3. Experimental Taxonomy
 
-### 3.3 Dynamic intervention protocol
+### 3.1 Task-demand groups
 
-Stale count, stale duration, fresh-action reaction latency.
+```text
+Single-stage transport
+Articulated/contact-rich
+Multi-stage/sequential
+```
 
-### 3.4 Task phases
+State explicitly that this is our task-level analysis taxonomy.
 
-Transit, approach, precision, contact, placement.
+### 3.2 Perturbation mechanism
 
-### 3.5 Distribution shift
+```text
+Trajectory adaptation
+Perceptual localization
+Appearance invariance
+Semantic grounding
+```
 
-ID/OOD factorial design.
+Map all seven official LIBERO-Plus perturbation families into these groups.
 
----
+State explicitly that the mechanism grouping is introduced for this study.
 
 ## 4. Experimental Setup
 
-- policies;
-- tasks;
-- execution methods;
-- latency profiles;
-- interventions;
-- environment and compute;
-- statistics.
+### 4.1 Policy
 
----
+```text
+lerobot/pi05_libero_finetuned
+n_action_steps = 10
+```
 
-## 5. Results
+### 4.2 Tasks
 
-### 5.1 Request latency versus action age
+```text
+libero_spatial:2
+libero_goal:0
+libero_10:2
+```
 
-### 5.2 Phase-conditioned delay tolerance
+### 4.3 Execution methods
 
-### 5.3 Mid-chunk scene changes
+```text
+Naive async
+RTC
+```
 
-### 5.4 Continuity versus freshness
+### 4.4 Temporal instrumentation
 
-### 5.5 OOD × delay interaction
+- request latency;
+- logical delay;
+- action age;
+- queue occupancy;
+- continuity diagnostics.
 
-### 5.6 Cross-method validation
+### 4.5 OOD variants
 
-### 5.7 Cross-model reaction deadlines
+- all seven LIBERO-Plus perturbation families;
+- one deterministic moderate-difficulty variant per task × family;
+- variant mapping frozen before policy outcomes.
 
----
+## 5. ID-Only Latency Calibration
 
-## 6. Ablations
+Show the calibration curve:
 
-- horizon;
-- queue semantics;
-- intervention timing;
-- compute matching;
-- phase thresholds;
-- metric predictiveness.
+```text
+Native
+Native +100
+Native +200
+Native +300
+Native +400
+Native +500
+Native +600
+Native +700 ms
+```
 
----
+Explain the predefined `d*` selection rule.
 
-## 7. Discussion
+The key methodological point:
 
-- what real-time should mean for VLA execution;
-- why smoothness and freshness differ;
-- implications for evaluation;
-- limitations;
-- future hardware work.
+> `d*` is selected without examining OOD outcomes.
 
----
+Main paper: compact plot/table.
 
-## 8. Conclusion
+Appendix: full task × method calibration table.
 
-Temporal robustness is a closed-loop execution property and should be measured
-at the executed-action level.
+## 6. Broad Exploratory OOD × Delay Screen
+
+Report the **entire** seven-family screen.
+
+### 6.1 Four-cell results
+
+For every task × perturbation × method:
+
+```text
+ID-low
+ID-high
+OOD-low
+OOD-high
+I
+```
+
+### 6.2 By perturbation family
+
+Question:
+
+> Which perturbation families most reduce delay tolerance?
+
+### 6.3 By perturbation mechanism
+
+Question:
+
+> Do trajectory adaptation, perceptual localization, appearance invariance, and semantic grounding exhibit different temporal sensitivity?
+
+Treat mechanism-level results as descriptive because group sizes differ.
+
+### 6.4 By task behavioral demand
+
+Question:
+
+> Does the same perturbation interact differently with delay across task demands?
+
+### 6.5 Naive async vs RTC
+
+Question:
+
+> Does asynchronous execution strategy change the OOD × delay interaction or ranking?
+
+## 7. Confirmatory Follow-Up
+
+Only include as confirmatory if it follows `STAGE_2_CONFIRMATORY_FOLLOWUP.md`.
+
+Report:
+
+- frozen selection rule;
+- exploratory seeds excluded from the held-out confirmation calculation;
+- held-out success counts and intervals;
+- interaction estimate;
+- whether the Stage 1 direction replicated.
+
+The complete Stage 1 screen remains visible in the paper or appendix.
+
+## 8. Temporal Mechanism Analysis
+
+Use action age and queue behavior to explain—not define—the main result.
+
+Potential analyses:
+
+- action-age distributions across ID/OOD and low/high;
+- successful vs failed episodes;
+- Naive async vs RTC;
+- whether a perturbation changes success without changing model request latency.
+
+Avoid causal language.
+
+## 9. Discussion
+
+Discuss:
+
+- whether static robustness predicts delayed robustness;
+- which perturbation mechanisms appear most temporally sensitive;
+- dependence on behavioral demand;
+- implications for evaluating VLA deployment;
+- what RTC does and does not protect against.
+
+## 10. Limitations
+
+Required:
+
+- one VLA checkpoint;
+- simulation only;
+- three base tasks;
+- one selected variant per task × perturbation family in Stage 1;
+- exploratory Stage 1 has only two seeds;
+- internal taxonomy is not canonical;
+- LIBERO-Plus perturbations may have unequal difficulty;
+- confirmation is selective by design and must be reported transparently;
+- no safety or hardware claim.
+
+## 11. Conclusion
+
+Preferred conclusion form:
+
+> Static OOD robustness and temporal robustness should not be treated as interchangeable. Their interaction depends on the perturbation, behavioral demand, and execution strategy.
+
+Only use this conclusion if the data support it.
+
+## Main figures
+
+Target:
+
+1. experiment/taxonomy schematic;
+2. Stage 0 latency calibration curve;
+3. Naive-async OOD × delay interaction heatmap;
+4. RTC OOD × delay interaction heatmap;
+5. interaction by perturbation mechanism/task demand;
+6. confirmatory interaction plot;
+7. action-age diagnostic.
+
+## Appendix
+
+Include:
+
+- all 192 Stage 1 analysis rows/cells summarized;
+- resolved LIBERO-Plus variant mapping;
+- complete null results;
+- invalid-run accounting;
+- environment/checkpoint revisions;
+- latency distributions;
+- queue diagnostics;
+- failure-mode table.
+
+## Claim gate
+
+Do not submit a paper whose only conclusion is:
+
+> More delay reduces success.
+
+A useful result should support at least one of:
+
+- static OOD robustness fails to predict delayed robustness;
+- perturbation mechanisms have different delay interactions;
+- behavioral demand changes the interaction;
+- RTC/Naive ranking changes under OOD + delay;
+- action-age diagnostics reveal a temporal failure mode hidden by request latency.

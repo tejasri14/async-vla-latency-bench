@@ -1,139 +1,179 @@
 # Research Context
 
-## Title
+## Working title
 
-**StaleBench: Temporal Robustness of Vision-Language-Action Policies under
-Asynchronous Execution**
+**Robustness Under Delay: OOD × Inference-Latency Interactions in Vision-Language-Action Policies**
 
-## Motivation
-
-Action-chunked VLA systems can continue acting while the next policy request
-runs in the background. This avoids blocking, but it creates a different
-reliability problem: queued actions can remain conditioned on an observation
-that no longer represents the scene.
-
-A controller can therefore be smooth without being responsive.
+Do not use `StaleBench` as the submission name unless the name collision is resolved.
 
 ## Central question
 
-Can action-level provenance and controlled scene changes reveal temporal
-robustness failures that are hidden by standard task success, request latency,
-and trajectory smoothness?
+> **Which kinds of distribution shift reduce a VLA policy's tolerance to inference delay, and under which behavioral demands?**
 
-## Benchmark architecture
+A complementary deployment question is:
 
-Every:
+> **Can standard native-latency robustness evaluations predict robustness once realistic inference delay is introduced?**
 
-- observation;
-- policy request;
-- generated chunk;
-- queued action;
-- executed action
+## Why this is the paper
 
-receives a unique identifier and timestamp.
+Static OOD robustness and inference-delay robustness are usually evaluated separately. The paper tests their **interaction**.
 
-The benchmark applies controlled interventions while old actions remain
-buffered and measures how long those actions remain in control.
+A weak result is:
 
-## Primary research questions
+> OOD hurts, delay hurts, and OOD plus delay hurts more.
 
-1. How does request latency translate into executed action age?
-2. How does task phase alter delay tolerance?
-3. Do distribution shift and asynchronous delay interact?
-4. How many stale actions do execution methods issue after a scene change?
-5. Do method or model rankings change under fresh-action deadlines?
-6. Does RTC improve continuity, freshness, or both?
+A stronger result is one or more of:
 
-## Hypotheses
+1. native-latency OOD success does not predict delayed OOD success;
+2. perturbation families differ strongly in how much they reduce delay tolerance;
+3. the same perturbation behaves differently across task-demand groups;
+4. Naive async and RTC change ranking under OOD + delay;
+5. executed action age explains failures that request latency alone does not.
 
-### H1 — Latency versus tolerance
-
-Raw request latency remains broadly similar across task semantics, while
-behavioral delay tolerance varies by task phase.
-
-### H2 — OOD × delay interaction
-
-Visual distribution shift and asynchronous delay jointly reduce success more
-than either factor evaluated alone.
-
-### H3 — Freshness
-
-Action age and stale-action exposure explain failure better than mean request
-latency alone.
-
-### H4 — Method trade-off
-
-RTC improves continuity and chunk compatibility but does not always minimize
-post-change stale-action exposure.
-
-### H5 — Ranking reversal
-
-The strongest zero-delay policy may not be best under strict fresh-action
-reaction deadlines.
-
-## Models
-
-Primary:
+## Primary model
 
 ```text
 lerobot/pi05_libero_finetuned
 ```
 
-Secondary, only after the primary benchmark is stable:
+Main evaluation override:
 
 ```text
-official LIBERO-compatible SmolVLA checkpoint selected and pinned in Week 3
+policy.n_action_steps = 10
 ```
 
-Optional:
+No additional VLA model is required for the primary paper.
+
+## Primary execution methods
 
 ```text
-OpenVLA-OFT only if the required study is complete and execution semantics can
-be matched fairly
+Naive async
+RTC
 ```
 
-## Execution methods
+Ideal/blocking/horizon results from earlier work may be cited as preliminary context, but they are not part of the new critical-path factorial.
 
-Core:
+## Task-demand taxonomy
 
-- ideal synchronous;
-- blocking synchronous;
-- naive asynchronous replacement;
-- RTC;
-- fixed-horizon sweep.
+This is **our experimental taxonomy**, not an official LIBERO taxonomy.
 
-Later:
+| Display label | Interpretation | Base task |
+|---|---|---|
+| **Single-stage transport** | relatively short pick-and-place dominated by transport between grasp and placement | `libero_spatial:2` |
+| **Articulated/contact-rich** | alignment/contact with an articulated object is central | `libero_goal:0` |
+| **Multi-stage/sequential** | multiple ordered subgoals can accumulate errors | `libero_10:2` |
 
+Exact standard-LIBERO task names:
+
+```text
+libero_spatial:2
+pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate
+
+libero_goal:0
+open_the_middle_drawer_of_the_cabinet
+
+libero_10:2
+KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it
+```
+
+## Perturbation taxonomy
+
+LIBERO-Plus provides seven perturbation dimensions. We retain those dimensions and introduce an internal mechanism grouping.
+
+| LIBERO-Plus perturbation | Internal mechanism group | Intended interpretation |
+|---|---|---|
+| Object layout | **Trajectory adaptation** | changed task geometry may require a different trajectory |
+| Robot initial state | **Trajectory adaptation** | changed manipulator start configuration requires adaptation |
+| Camera viewpoint | **Perceptual localization** | changed viewpoint stresses spatial localization |
+| Sensor noise | **Perceptual localization** | degraded observations stress localization/perception |
+| Lighting | **Appearance invariance** | task geometry is largely preserved while appearance changes |
+| Background texture | **Appearance invariance** | irrelevant scene/surface appearance changes |
+| Language instruction | **Semantic grounding** | alternative instruction wording stresses language-conditioned grounding |
+
+Use the exact four mechanism labels:
+
+```text
+Trajectory adaptation
+Perceptual localization
+Appearance invariance
+Semantic grounding
+```
+
+## Hypotheses
+
+### H1 — OOD × delay interaction
+
+Distribution shift changes the marginal effect of inference delay:
+
+```text
+I =
+  [S(OOD, high) - S(OOD, low)]
+  -
+  [S(ID, high) - S(ID, low)]
+```
+
+A negative `I` means OOD reduces delay tolerance.
+
+### H2 — Perturbation mechanism
+
+The interaction magnitude differs across perturbation-mechanism groups.
+
+### H3 — Behavioral demand
+
+The same perturbation can interact differently with delay on Single-stage transport, Articulated/contact-rich, and Multi-stage/sequential tasks.
+
+### H4 — Execution method
+
+Naive async and RTC can exhibit different OOD × delay interactions and may change ranking under OOD + delay.
+
+### H5 — Temporal mechanism
+
+Executed action age and queue behavior can help explain interaction patterns that are not visible from request latency alone.
+
+H5 is mechanism analysis, not a separate headline contribution.
+
+## Scope
+
+### Required
+
+- one π0.5 checkpoint;
+- three base tasks;
+- all seven LIBERO-Plus perturbation families;
+- ID-only latency calibration;
+- Native vs Native + `d*`;
+- Naive async vs RTC;
+- action provenance and age;
+- complete exploratory reporting;
+- held-out confirmation of selected candidate effects if time permits.
+
+### Not required
+
+- phase-conditioned interventions;
+- dynamic target movement;
 - VLASH;
-- one streaming or corrective baseline only if official code and compatible
-  checkpoints are available.
-
-## Environments
-
-- LIBERO-Spatial;
-- LIBERO-Goal;
-- LIBERO-10;
-- selected LIBERO-Plus object-layout and camera variants.
+- SmolVLA;
+- streaming/corrective methods;
+- additional model training;
+- hardware robot validation.
 
 ## Main contribution
 
-A benchmark and instrumentation framework for:
+A controlled evaluation showing **how robustness to distribution shift changes once asynchronous inference delay is introduced**, organized by:
 
-- action age;
-- stale-action count;
-- stale duration;
-- fresh-action reaction latency;
-- phase-conditioned delay;
-- OOD-delay interaction;
-- continuity-versus-freshness trade-offs.
+1. perturbation mechanism;
+2. manipulation behavioral demand;
+3. execution method.
+
+Action-level provenance provides an explanatory temporal measurement layer.
 
 ## Explicit non-claims
 
-StaleBench does not claim:
+Do not claim:
 
-- a new asynchronous execution method;
-- lower raw model inference latency;
-- a safety guarantee;
-- hardware validation;
-- that fewer stale actions imply safe actions;
-- universal superiority of any method.
+- a new execution algorithm;
+- universal robustness rankings;
+- hardware validity;
+- safety guarantees;
+- causal mechanisms from action-age correlation alone;
+- that every OOD perturbation amplifies delay;
+- that the internal taxonomy is a canonical robotics taxonomy.
