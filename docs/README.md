@@ -19,14 +19,14 @@ Model:
     lerobot/pi05_libero_finetuned
 
 Evaluation action horizon:
-    n_action_steps = 10
+    n_action_steps = 25
 
 Execution methods:
     Naive async
     RTC
 ```
 
-`n_action_steps=10` is the evaluation setting. Do not infer it from the checkpoint's training configuration.
+`n_action_steps=25` is the frozen revised evaluation setting for Stages 1 and 2. It was selected from ID-only Stage 0 evidence and must not be changed in response to OOD outcomes.
 
 ## Canonical analysis taxonomy
 
@@ -83,14 +83,15 @@ New OOD runs:
 × 7 perturbation families
 × 2 delays [Native, Native + d*]
 × 2 methods
-× 2 seeds
-= 168 new OOD episodes
+× 5 seeds
+= 420 new OOD episodes
 ```
 
 The Stage 1 analysis also reuses 24 matching ID low/high episodes from Stage 0:
 
 ```text
-168 OOD + 24 reused ID = 192 analysis episodes
+420 OOD + 60 ID = 480 analysis episodes
+24 ID episodes reused from Stage 0 + 36 new ID episodes
 ```
 
 Total unique Stage 0 + Stage 1 compute:
@@ -116,7 +117,7 @@ See `STAGE_2_CONFIRMATORY_FOLLOWUP.md`.
 |---|---|
 | `RESEARCH_CONTEXT.md` | current question, hypotheses, taxonomy, scope |
 | `STAGE_0_LATENCY_CALIBRATION.md` | exact latency calibration runs and `d*` rule |
-| `STAGE_1_EXPLORATORY_SCREEN.md` | exact 192-cell analysis plan, including all episode rows |
+| `STAGE_1_EXPLORATORY_SCREEN.md` | exact 480-episode analysis plan across 96 condition blocks |
 | `STAGE_2_CONFIRMATORY_FOLLOWUP.md` | predefined follow-up rule after exploratory screening |
 | `METRICS_AND_LOGGING.md` | canonical timing, provenance, metrics, statistics |
 | `PAPER_OUTLINE.md` | paper structure and allowable claims |

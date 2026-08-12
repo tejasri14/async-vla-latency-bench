@@ -1,5 +1,10 @@
 # Stage 0 — ID-Only Latency Calibration
 
+> **Current protocol (D016):** The completed revised calibration uses
+> `n_action_steps=25`, seeds `0, 1, 10, 11, 12, 13`, and added delays
+> `0, 100, 200, 300, 400 ms` (180 episodes). All matrices, selection rules,
+> tables, plots, and reporting instructions below describe this revised design.
+
 ## 0. Role in the paper
 
 Yes: this calibration is part of the paper.
@@ -32,7 +37,7 @@ Naive async
 RTC
 ```
 
-and both exploratory seeds.
+and all five exploratory seeds.
 
 Therefore the Stage 1 OOD factorial is:
 
@@ -41,8 +46,8 @@ Therefore the Stage 1 OOD factorial is:
 × 7 perturbation families
 × 2 latency levels
 × 2 execution methods
-× 2 seeds
-= 168 OOD episodes
+× 5 seeds
+= 420 OOD episodes
 ```
 
 The purpose of Stage 0 is only to determine what `d*` should be.
@@ -59,7 +64,7 @@ Use:
 
 ```text
 policy = lerobot/pi05_libero_finetuned
-policy.n_action_steps = 10
+policy.n_action_steps = 25
 ```
 
 Execution methods:
@@ -91,9 +96,9 @@ assert task_suite.get_task(task_id).name == EXPECTED_TASK_NAME
 
 ---
 
-## 4. Latencies to test
+## 4. Added-delay grid
 
-Test exactly eight **added-delay** settings:
+The completed calibration uses exactly five **added-delay** settings:
 
 | `added_delay_ms` | Display label | Meaning |
 |---:|---|---|
@@ -102,27 +107,23 @@ Test exactly eight **added-delay** settings:
 | `200` | **Native + 200 ms** | Native request latency plus 200 ms |
 | `300` | **Native + 300 ms** | Native request latency plus 300 ms |
 | `400` | **Native + 400 ms** | Native request latency plus 400 ms |
-| `500` | **Native + 500 ms** | Native request latency plus 500 ms |
-| `600` | **Native + 600 ms** | Native request latency plus 600 ms |
-| `700` | **Native + 700 ms** | Native request latency plus 700 ms |
 
 Important:
 
-- These values are **added artificial delay**, not total request latency.
-- Log the actual measured total request latency for every request.
-- Also convert total latency to effective logical delay in control steps.
-- Include `+700 ms` in calibration so the full degradation curve is observed, but do not automatically choose it if it is already saturated.
+- These values are added artificial delay, not total request latency.
+- Log actual measured total request latency for every request.
+- Convert total latency to effective logical delay in control steps.
+- No `500–700 ms` extension or rerun is required under D016.
 - Do not use different delays for different task groups or execution methods.
 
 ---
 
 ## 5. Seeds and total budget
 
-Use the same exploratory seeds as Stage 1:
+Use the six fixed Stage 0 seeds:
 
 ```text
-seed = 0
-seed = 1
+0, 1, 10, 11, 12, 13
 ```
 
 Calibration budget:
@@ -130,183 +131,60 @@ Calibration budget:
 ```text
 3 tasks
 × 2 methods
-× 8 added-delay settings
-× 2 seeds
-= 96 episodes
+× 5 added-delay settings
+× 6 seeds
+= 180 episodes
 ```
 
-There are **48 unique task × method × delay condition blocks**, each with 2 seeds.
+There are 30 unique task × method × delay condition blocks, each with six
+seeds.
 
-The `Native` episodes and the episodes at the eventually selected `d*` become the Stage 1 shared ID controls.
+The Native and selected-`d*` episodes for seeds `0` and `1` may provide 24
+of the Stage 1 shared ID controls when every configuration and provenance field
+matches. Stage 1 independently uses seeds `0–4` and therefore runs the 36
+missing ID controls for seeds `2`, `3`, and `4`.
 
 Therefore:
 
 ```text
-Stage 0 unique episodes = 96
-Stage 1 OOD episodes    = 168
---------------------------------
-Total unique episodes   = 264
+Stage 0 unique episodes        = 180
+Stage 1 OOD episodes           = 420
+Stage 1 additional ID controls = 36
+--------------------------------------
+Total unique episodes          = 636
 ```
-
-Do not rerun the 24 selected ID low/high episodes unless a run is invalid.
 
 ---
 
-## 6. Complete calibration experiment table
+## 6. Complete calibration experiment matrix
 
-### 6.1 Condition-level matrix — 48 conditions
+### 6.1 Condition-level matrix — 30 conditions
 
-| # | Task-demand group | Suite:task_id | Method | Added delay | Seeds | Episodes |
-|---:|---|---|---|---|---|---:|
-| 1 | Single-stage transport | `libero_spatial:2` | Naive async | Native | `0, 1` | 2 |
-| 2 | Single-stage transport | `libero_spatial:2` | Naive async | Native + 100 ms | `0, 1` | 2 |
-| 3 | Single-stage transport | `libero_spatial:2` | Naive async | Native + 200 ms | `0, 1` | 2 |
-| 4 | Single-stage transport | `libero_spatial:2` | Naive async | Native + 300 ms | `0, 1` | 2 |
-| 5 | Single-stage transport | `libero_spatial:2` | Naive async | Native + 400 ms | `0, 1` | 2 |
-| 6 | Single-stage transport | `libero_spatial:2` | Naive async | Native + 500 ms | `0, 1` | 2 |
-| 7 | Single-stage transport | `libero_spatial:2` | Naive async | Native + 600 ms | `0, 1` | 2 |
-| 8 | Single-stage transport | `libero_spatial:2` | Naive async | Native + 700 ms | `0, 1` | 2 |
-| 9 | Single-stage transport | `libero_spatial:2` | RTC | Native | `0, 1` | 2 |
-| 10 | Single-stage transport | `libero_spatial:2` | RTC | Native + 100 ms | `0, 1` | 2 |
-| 11 | Single-stage transport | `libero_spatial:2` | RTC | Native + 200 ms | `0, 1` | 2 |
-| 12 | Single-stage transport | `libero_spatial:2` | RTC | Native + 300 ms | `0, 1` | 2 |
-| 13 | Single-stage transport | `libero_spatial:2` | RTC | Native + 400 ms | `0, 1` | 2 |
-| 14 | Single-stage transport | `libero_spatial:2` | RTC | Native + 500 ms | `0, 1` | 2 |
-| 15 | Single-stage transport | `libero_spatial:2` | RTC | Native + 600 ms | `0, 1` | 2 |
-| 16 | Single-stage transport | `libero_spatial:2` | RTC | Native + 700 ms | `0, 1` | 2 |
-| 17 | Articulated/contact-rich | `libero_goal:0` | Naive async | Native | `0, 1` | 2 |
-| 18 | Articulated/contact-rich | `libero_goal:0` | Naive async | Native + 100 ms | `0, 1` | 2 |
-| 19 | Articulated/contact-rich | `libero_goal:0` | Naive async | Native + 200 ms | `0, 1` | 2 |
-| 20 | Articulated/contact-rich | `libero_goal:0` | Naive async | Native + 300 ms | `0, 1` | 2 |
-| 21 | Articulated/contact-rich | `libero_goal:0` | Naive async | Native + 400 ms | `0, 1` | 2 |
-| 22 | Articulated/contact-rich | `libero_goal:0` | Naive async | Native + 500 ms | `0, 1` | 2 |
-| 23 | Articulated/contact-rich | `libero_goal:0` | Naive async | Native + 600 ms | `0, 1` | 2 |
-| 24 | Articulated/contact-rich | `libero_goal:0` | Naive async | Native + 700 ms | `0, 1` | 2 |
-| 25 | Articulated/contact-rich | `libero_goal:0` | RTC | Native | `0, 1` | 2 |
-| 26 | Articulated/contact-rich | `libero_goal:0` | RTC | Native + 100 ms | `0, 1` | 2 |
-| 27 | Articulated/contact-rich | `libero_goal:0` | RTC | Native + 200 ms | `0, 1` | 2 |
-| 28 | Articulated/contact-rich | `libero_goal:0` | RTC | Native + 300 ms | `0, 1` | 2 |
-| 29 | Articulated/contact-rich | `libero_goal:0` | RTC | Native + 400 ms | `0, 1` | 2 |
-| 30 | Articulated/contact-rich | `libero_goal:0` | RTC | Native + 500 ms | `0, 1` | 2 |
-| 31 | Articulated/contact-rich | `libero_goal:0` | RTC | Native + 600 ms | `0, 1` | 2 |
-| 32 | Articulated/contact-rich | `libero_goal:0` | RTC | Native + 700 ms | `0, 1` | 2 |
-| 33 | Multi-stage/sequential | `libero_10:2` | Naive async | Native | `0, 1` | 2 |
-| 34 | Multi-stage/sequential | `libero_10:2` | Naive async | Native + 100 ms | `0, 1` | 2 |
-| 35 | Multi-stage/sequential | `libero_10:2` | Naive async | Native + 200 ms | `0, 1` | 2 |
-| 36 | Multi-stage/sequential | `libero_10:2` | Naive async | Native + 300 ms | `0, 1` | 2 |
-| 37 | Multi-stage/sequential | `libero_10:2` | Naive async | Native + 400 ms | `0, 1` | 2 |
-| 38 | Multi-stage/sequential | `libero_10:2` | Naive async | Native + 500 ms | `0, 1` | 2 |
-| 39 | Multi-stage/sequential | `libero_10:2` | Naive async | Native + 600 ms | `0, 1` | 2 |
-| 40 | Multi-stage/sequential | `libero_10:2` | Naive async | Native + 700 ms | `0, 1` | 2 |
-| 41 | Multi-stage/sequential | `libero_10:2` | RTC | Native | `0, 1` | 2 |
-| 42 | Multi-stage/sequential | `libero_10:2` | RTC | Native + 100 ms | `0, 1` | 2 |
-| 43 | Multi-stage/sequential | `libero_10:2` | RTC | Native + 200 ms | `0, 1` | 2 |
-| 44 | Multi-stage/sequential | `libero_10:2` | RTC | Native + 300 ms | `0, 1` | 2 |
-| 45 | Multi-stage/sequential | `libero_10:2` | RTC | Native + 400 ms | `0, 1` | 2 |
-| 46 | Multi-stage/sequential | `libero_10:2` | RTC | Native + 500 ms | `0, 1` | 2 |
-| 47 | Multi-stage/sequential | `libero_10:2` | RTC | Native + 600 ms | `0, 1` | 2 |
-| 48 | Multi-stage/sequential | `libero_10:2` | RTC | Native + 700 ms | `0, 1` | 2 |
+Materialize the Cartesian product:
 
-### 6.2 Episode-level manifest — all 96 episodes
+```text
+tasks   = [libero_spatial:2, libero_goal:0, libero_10:2]
+methods = [naive_async, rtc]
+delays  = [0, 100, 200, 300, 400]
+seeds   = [0, 1, 10, 11, 12, 13]
+```
 
-| Exp. | Task-demand group | Suite:task_id | Method | Added delay (ms) | Delay label | Seed |
-|---:|---|---|---|---:|---|---:|
-| C001 | Single-stage transport | `libero_spatial:2` | Naive async | 0 | Native | 0 |
-| C002 | Single-stage transport | `libero_spatial:2` | Naive async | 0 | Native | 1 |
-| C003 | Single-stage transport | `libero_spatial:2` | Naive async | 100 | Native + 100 ms | 0 |
-| C004 | Single-stage transport | `libero_spatial:2` | Naive async | 100 | Native + 100 ms | 1 |
-| C005 | Single-stage transport | `libero_spatial:2` | Naive async | 200 | Native + 200 ms | 0 |
-| C006 | Single-stage transport | `libero_spatial:2` | Naive async | 200 | Native + 200 ms | 1 |
-| C007 | Single-stage transport | `libero_spatial:2` | Naive async | 300 | Native + 300 ms | 0 |
-| C008 | Single-stage transport | `libero_spatial:2` | Naive async | 300 | Native + 300 ms | 1 |
-| C009 | Single-stage transport | `libero_spatial:2` | Naive async | 400 | Native + 400 ms | 0 |
-| C010 | Single-stage transport | `libero_spatial:2` | Naive async | 400 | Native + 400 ms | 1 |
-| C011 | Single-stage transport | `libero_spatial:2` | Naive async | 500 | Native + 500 ms | 0 |
-| C012 | Single-stage transport | `libero_spatial:2` | Naive async | 500 | Native + 500 ms | 1 |
-| C013 | Single-stage transport | `libero_spatial:2` | Naive async | 600 | Native + 600 ms | 0 |
-| C014 | Single-stage transport | `libero_spatial:2` | Naive async | 600 | Native + 600 ms | 1 |
-| C015 | Single-stage transport | `libero_spatial:2` | Naive async | 700 | Native + 700 ms | 0 |
-| C016 | Single-stage transport | `libero_spatial:2` | Naive async | 700 | Native + 700 ms | 1 |
-| C017 | Single-stage transport | `libero_spatial:2` | RTC | 0 | Native | 0 |
-| C018 | Single-stage transport | `libero_spatial:2` | RTC | 0 | Native | 1 |
-| C019 | Single-stage transport | `libero_spatial:2` | RTC | 100 | Native + 100 ms | 0 |
-| C020 | Single-stage transport | `libero_spatial:2` | RTC | 100 | Native + 100 ms | 1 |
-| C021 | Single-stage transport | `libero_spatial:2` | RTC | 200 | Native + 200 ms | 0 |
-| C022 | Single-stage transport | `libero_spatial:2` | RTC | 200 | Native + 200 ms | 1 |
-| C023 | Single-stage transport | `libero_spatial:2` | RTC | 300 | Native + 300 ms | 0 |
-| C024 | Single-stage transport | `libero_spatial:2` | RTC | 300 | Native + 300 ms | 1 |
-| C025 | Single-stage transport | `libero_spatial:2` | RTC | 400 | Native + 400 ms | 0 |
-| C026 | Single-stage transport | `libero_spatial:2` | RTC | 400 | Native + 400 ms | 1 |
-| C027 | Single-stage transport | `libero_spatial:2` | RTC | 500 | Native + 500 ms | 0 |
-| C028 | Single-stage transport | `libero_spatial:2` | RTC | 500 | Native + 500 ms | 1 |
-| C029 | Single-stage transport | `libero_spatial:2` | RTC | 600 | Native + 600 ms | 0 |
-| C030 | Single-stage transport | `libero_spatial:2` | RTC | 600 | Native + 600 ms | 1 |
-| C031 | Single-stage transport | `libero_spatial:2` | RTC | 700 | Native + 700 ms | 0 |
-| C032 | Single-stage transport | `libero_spatial:2` | RTC | 700 | Native + 700 ms | 1 |
-| C033 | Articulated/contact-rich | `libero_goal:0` | Naive async | 0 | Native | 0 |
-| C034 | Articulated/contact-rich | `libero_goal:0` | Naive async | 0 | Native | 1 |
-| C035 | Articulated/contact-rich | `libero_goal:0` | Naive async | 100 | Native + 100 ms | 0 |
-| C036 | Articulated/contact-rich | `libero_goal:0` | Naive async | 100 | Native + 100 ms | 1 |
-| C037 | Articulated/contact-rich | `libero_goal:0` | Naive async | 200 | Native + 200 ms | 0 |
-| C038 | Articulated/contact-rich | `libero_goal:0` | Naive async | 200 | Native + 200 ms | 1 |
-| C039 | Articulated/contact-rich | `libero_goal:0` | Naive async | 300 | Native + 300 ms | 0 |
-| C040 | Articulated/contact-rich | `libero_goal:0` | Naive async | 300 | Native + 300 ms | 1 |
-| C041 | Articulated/contact-rich | `libero_goal:0` | Naive async | 400 | Native + 400 ms | 0 |
-| C042 | Articulated/contact-rich | `libero_goal:0` | Naive async | 400 | Native + 400 ms | 1 |
-| C043 | Articulated/contact-rich | `libero_goal:0` | Naive async | 500 | Native + 500 ms | 0 |
-| C044 | Articulated/contact-rich | `libero_goal:0` | Naive async | 500 | Native + 500 ms | 1 |
-| C045 | Articulated/contact-rich | `libero_goal:0` | Naive async | 600 | Native + 600 ms | 0 |
-| C046 | Articulated/contact-rich | `libero_goal:0` | Naive async | 600 | Native + 600 ms | 1 |
-| C047 | Articulated/contact-rich | `libero_goal:0` | Naive async | 700 | Native + 700 ms | 0 |
-| C048 | Articulated/contact-rich | `libero_goal:0` | Naive async | 700 | Native + 700 ms | 1 |
-| C049 | Articulated/contact-rich | `libero_goal:0` | RTC | 0 | Native | 0 |
-| C050 | Articulated/contact-rich | `libero_goal:0` | RTC | 0 | Native | 1 |
-| C051 | Articulated/contact-rich | `libero_goal:0` | RTC | 100 | Native + 100 ms | 0 |
-| C052 | Articulated/contact-rich | `libero_goal:0` | RTC | 100 | Native + 100 ms | 1 |
-| C053 | Articulated/contact-rich | `libero_goal:0` | RTC | 200 | Native + 200 ms | 0 |
-| C054 | Articulated/contact-rich | `libero_goal:0` | RTC | 200 | Native + 200 ms | 1 |
-| C055 | Articulated/contact-rich | `libero_goal:0` | RTC | 300 | Native + 300 ms | 0 |
-| C056 | Articulated/contact-rich | `libero_goal:0` | RTC | 300 | Native + 300 ms | 1 |
-| C057 | Articulated/contact-rich | `libero_goal:0` | RTC | 400 | Native + 400 ms | 0 |
-| C058 | Articulated/contact-rich | `libero_goal:0` | RTC | 400 | Native + 400 ms | 1 |
-| C059 | Articulated/contact-rich | `libero_goal:0` | RTC | 500 | Native + 500 ms | 0 |
-| C060 | Articulated/contact-rich | `libero_goal:0` | RTC | 500 | Native + 500 ms | 1 |
-| C061 | Articulated/contact-rich | `libero_goal:0` | RTC | 600 | Native + 600 ms | 0 |
-| C062 | Articulated/contact-rich | `libero_goal:0` | RTC | 600 | Native + 600 ms | 1 |
-| C063 | Articulated/contact-rich | `libero_goal:0` | RTC | 700 | Native + 700 ms | 0 |
-| C064 | Articulated/contact-rich | `libero_goal:0` | RTC | 700 | Native + 700 ms | 1 |
-| C065 | Multi-stage/sequential | `libero_10:2` | Naive async | 0 | Native | 0 |
-| C066 | Multi-stage/sequential | `libero_10:2` | Naive async | 0 | Native | 1 |
-| C067 | Multi-stage/sequential | `libero_10:2` | Naive async | 100 | Native + 100 ms | 0 |
-| C068 | Multi-stage/sequential | `libero_10:2` | Naive async | 100 | Native + 100 ms | 1 |
-| C069 | Multi-stage/sequential | `libero_10:2` | Naive async | 200 | Native + 200 ms | 0 |
-| C070 | Multi-stage/sequential | `libero_10:2` | Naive async | 200 | Native + 200 ms | 1 |
-| C071 | Multi-stage/sequential | `libero_10:2` | Naive async | 300 | Native + 300 ms | 0 |
-| C072 | Multi-stage/sequential | `libero_10:2` | Naive async | 300 | Native + 300 ms | 1 |
-| C073 | Multi-stage/sequential | `libero_10:2` | Naive async | 400 | Native + 400 ms | 0 |
-| C074 | Multi-stage/sequential | `libero_10:2` | Naive async | 400 | Native + 400 ms | 1 |
-| C075 | Multi-stage/sequential | `libero_10:2` | Naive async | 500 | Native + 500 ms | 0 |
-| C076 | Multi-stage/sequential | `libero_10:2` | Naive async | 500 | Native + 500 ms | 1 |
-| C077 | Multi-stage/sequential | `libero_10:2` | Naive async | 600 | Native + 600 ms | 0 |
-| C078 | Multi-stage/sequential | `libero_10:2` | Naive async | 600 | Native + 600 ms | 1 |
-| C079 | Multi-stage/sequential | `libero_10:2` | Naive async | 700 | Native + 700 ms | 0 |
-| C080 | Multi-stage/sequential | `libero_10:2` | Naive async | 700 | Native + 700 ms | 1 |
-| C081 | Multi-stage/sequential | `libero_10:2` | RTC | 0 | Native | 0 |
-| C082 | Multi-stage/sequential | `libero_10:2` | RTC | 0 | Native | 1 |
-| C083 | Multi-stage/sequential | `libero_10:2` | RTC | 100 | Native + 100 ms | 0 |
-| C084 | Multi-stage/sequential | `libero_10:2` | RTC | 100 | Native + 100 ms | 1 |
-| C085 | Multi-stage/sequential | `libero_10:2` | RTC | 200 | Native + 200 ms | 0 |
-| C086 | Multi-stage/sequential | `libero_10:2` | RTC | 200 | Native + 200 ms | 1 |
-| C087 | Multi-stage/sequential | `libero_10:2` | RTC | 300 | Native + 300 ms | 0 |
-| C088 | Multi-stage/sequential | `libero_10:2` | RTC | 300 | Native + 300 ms | 1 |
-| C089 | Multi-stage/sequential | `libero_10:2` | RTC | 400 | Native + 400 ms | 0 |
-| C090 | Multi-stage/sequential | `libero_10:2` | RTC | 400 | Native + 400 ms | 1 |
-| C091 | Multi-stage/sequential | `libero_10:2` | RTC | 500 | Native + 500 ms | 0 |
-| C092 | Multi-stage/sequential | `libero_10:2` | RTC | 500 | Native + 500 ms | 1 |
-| C093 | Multi-stage/sequential | `libero_10:2` | RTC | 600 | Native + 600 ms | 0 |
-| C094 | Multi-stage/sequential | `libero_10:2` | RTC | 600 | Native + 600 ms | 1 |
-| C095 | Multi-stage/sequential | `libero_10:2` | RTC | 700 | Native + 700 ms | 0 |
-| C096 | Multi-stage/sequential | `libero_10:2` | RTC | 700 | Native + 700 ms | 1 |
+Each task × method × delay block contains six episodes. The generated manifest
+must satisfy:
+
+```python
+assert len(condition_rows) == 30
+assert len(episode_rows) == 180
+assert sorted({row["seed"] for row in episode_rows}) == [0, 1, 10, 11, 12, 13]
+assert sorted({row["added_delay_ms"] for row in episode_rows}) == [0, 100, 200, 300, 400]
+```
+
+### 6.2 Episode-level manifest — all 180 episodes
+
+Assign deterministic IDs after expanding the 30 condition rows over all six
+seeds. Do not omit failed cells from the planned manifest. Save the materialized
+manifest with the run artifacts so the 180 planned rows can be compared with the
+180 completed summaries.
 
 ---
 
@@ -380,22 +258,22 @@ For each of the six:
 3 tasks × 2 methods
 ```
 
-compute Native success over the two seeds.
+compute Native success over all six seeds.
 
 A task × method cell is **viable for delay calibration** if:
 
 ```text
-Native success >= 1 / 2
+Native success >= 3 / 6
 ```
 
-Cells already at `0 / 2` under Native are retained in all tables but are not allowed to determine the high-delay choice because they are already at floor.
+Cells below `3 / 6` under Native are retained in all tables but are not allowed to determine the high-delay choice because they are already at floor.
 
 ### 8.2 Compute calibration summary
 
 For each candidate:
 
 ```text
-d ∈ {100, 200, 300, 400, 500, 600, 700} ms
+d ∈ {100, 200, 300, 400} ms
 ```
 
 using only the viable cells, calculate:
@@ -406,7 +284,7 @@ S_d
 delay_drop(d) = S_d - S_native
 ```
 
-where success is pooled over the same viable task × method cells and both seeds.
+where success is pooled over the same viable task × method cells and all six seeds.
 
 ### 8.3 Frozen selection rule
 
@@ -447,7 +325,7 @@ Apply these in order if no candidate satisfies the primary rule:
 CALIBRATION_SATURATED = true
 ```
 
-3. Otherwise choose `700 ms` and flag:
+3. Otherwise choose `400 ms` and flag:
 
 ```text
 CALIBRATION_WEAK = true
@@ -485,13 +363,13 @@ Then Stage 1 reads this file rather than hard-coding its own delay.
 
 ### Table A — Per-task calibration
 
-| Task-demand group | Method | Native | +100 | +200 | +300 | +400 | +500 | +600 | +700 ms | Viable? |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| Task-demand group | Method | Native | +100 | +200 | +300 | +400 | Viable? |
+|---|---|---:|---:|---:|---:|---:|---|
 
 Cells contain:
 
 ```text
-successes / 2
+successes / 6
 ```
 
 ---
@@ -505,9 +383,6 @@ successes / 2
 | 200 ms | ... | ... | ... | ... |
 | 300 ms | ... | ... | ... | ... |
 | 400 ms | ... | ... | ... | ... |
-| 500 ms | ... | ... | ... | ... |
-| 600 ms | ... | ... | ... | ... |
-| 700 ms | ... | ... | ... | ... |
 
 Mark the selected `d*`.
 
@@ -515,10 +390,10 @@ Mark the selected `d*`.
 
 ### Table C — Execution-method calibration
 
-| Method | Native | +100 | +200 | +300 | +400 | +500 | +600 | +700 ms |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Naive async | ... | ... | ... | ... | ... | ... | ... | ... |
-| RTC | ... | ... | ... | ... | ... | ... | ... | ... |
+| Method | Native | +100 | +200 | +300 | +400 |
+|---|---:|---:|---:|---:|---:|
+| Naive async | ... | ... | ... | ... | ... |
+| RTC | ... | ... | ... | ... | ... |
 
 Use this only descriptively. The selected `d*` remains common to both methods.
 
@@ -535,7 +410,7 @@ Use this only descriptively. The selected `d*` remains common to both methods.
 
 ### Plot 1 — ID success vs added delay
 
-- x-axis: added delay (`0`, `100`, `200`, `300`, `400`, `500`, `600`, `700 ms`)
+- x-axis: added delay (`0`, `100`, `200`, `300`, `400 ms`)
 - y-axis: success rate
 - line: execution method
 - facet: task-demand group
@@ -581,7 +456,7 @@ with:
 # Latency Calibration Observations
 
 ## Coverage
-- Expected episodes: 96
+- Expected episodes: 180
 - Completed:
 - Invalid:
 - Rerun:
@@ -605,9 +480,6 @@ with:
 - +200 ms pooled success:
 - +300 ms pooled success:
 - +400 ms pooled success:
-- +500 ms pooled success:
-- +600 ms pooled success:
-- +700 ms pooled success:
 
 ## Freshness response
 - Native p95 action age:
@@ -615,9 +487,6 @@ with:
 - +200 ms p95 action age:
 - +300 ms p95 action age:
 - +400 ms p95 action age:
-- +500 ms p95 action age:
-- +600 ms p95 action age:
-- +700 ms p95 action age:
 
 ## Selected high delay
 - d*:
@@ -641,7 +510,7 @@ with:
 
 Use:
 
-> “To avoid tuning latency against OOD outcomes, we select the high-delay condition using only standard LIBERO tasks. We evaluate 0, 100, 200, 300, 400, 500, 600, and 700 ms of added delay under both Naive async and RTC, then freeze the smallest delay that produces at least a 20 percentage-point reduction in pooled success on viable ID conditions while retaining at least 25% success.”
+> “To avoid tuning latency against OOD outcomes, we select the high-delay condition using only standard LIBERO tasks. We evaluate 0, 100, 200, 300, and 400 ms of added delay under both Naive async and RTC, then freeze the smallest delay that produces at least a 20 percentage-point reduction in pooled success on viable ID conditions while retaining at least 25% success.”
 
 ### Stage 1 transition
 
@@ -699,22 +568,26 @@ METHODS:
     Naive async
     RTC
 
+N_ACTION_STEPS:
+    25
+
 ADDED DELAYS:
     0 ms
     100 ms
     200 ms
     300 ms
     400 ms
-    500 ms
-    600 ms
-    700 ms
 
 SEEDS:
     0
     1
+    10
+    11
+    12
+    13
 
 TOTAL:
-    96 episodes
+    180 episodes
 
 OUTPUT:
     one frozen high delay d*
